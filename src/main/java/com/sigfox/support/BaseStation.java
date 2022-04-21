@@ -18,7 +18,7 @@ public class BaseStation {
 
     };
 
-
+//this is because of the structure of the JSON object that they are sending back
     @SerializedName(value = "baseStation", alternate = "//")
     private RinfoBaseDetails baseDetails;
 
@@ -63,8 +63,8 @@ public class BaseStation {
 
     public double getCircle_radius() {
 
-        double temp = ((Math.abs(rssi)/10)-9); //  |-107|/10 = 10.7-9 = 1.7
-        circle_radius = Math.pow(temp,2)-temp+2; //  n^2-n+2
+        double factor = ((Math.abs(rssi)/10)-9); //  |-107|/10 = 10.7-9 = 1.7
+        circle_radius = Math.pow(factor,2)-factor+2; //  n^2-n+2
         return circle_radius;
     }
 

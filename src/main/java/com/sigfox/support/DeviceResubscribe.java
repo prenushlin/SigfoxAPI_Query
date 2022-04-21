@@ -19,17 +19,32 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.util.*;
 
+
+/*TODO:
+MODULARIZE:
+makefile
+choose what functionality
+choose filename
+tells you job response + job ID
+Then asks for a comment and appends to an existing text file
+        */
+
 public class DeviceResubscribe {
     private static HttpURLConnection conn;
+    private  List<Device> devicesList;
+    private String url, jsonInput, jobResponse;
+    private BufferedReader br, reader;
+
+
+    public DeviceResubscribe()
+    {
+        devicesList = new ArrayList<>();
+    }
 
 //class used to resubscribe devices based on a list of their IDs
 
-    public static void main(String [] args) throws IOException {
-        //init vars
-        BufferedReader br, reader;
-        String deviceID; //Make ArrayList
-        List<Device> devicesList = new ArrayList<>();
-        String url, jsonInput;
+    public void run() throws IOException {
+
 
 
         try {
@@ -58,20 +73,22 @@ public class DeviceResubscribe {
            //hard coded the start of the json object for the POST API
            jsonInput="{\n" + "\"data\": ";
 
-
-            for (int i = 0; i < devicesList.size(); i++) {
-                jsonInput2.add(devicesList.get(i).getId());
+            // for bulk restarting
+            for (Device device : devicesList) {
+                jsonInput2.add(device.getId());
             }
-            String finalInput=(jsonInput+gson.toJson(jsonInput2)+"\n}");
-            System.out.println(finalInput);
+             String finalInput=(jsonInput+gson.toJson(jsonInput2)+"\n}");
+           System.out.println(finalInput);
+
 
             url = "https://api.sigfox.com/v2/devices/bulk/restart";
-            API postAPI = new API();
-            conn = postAPI.postAPI(url,finalInput);
+            API resubAPI = new API();
+            conn = resubAPI.postAPI(url,finalInput);
 
             int status = conn.getResponseCode();
             //If response good
             if (status == 200) {
+                System.out.println("response good");
                 StringBuilder objectInfo = new StringBuilder();
                 reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 
@@ -82,22 +99,11 @@ public class DeviceResubscribe {
                 reader.close();
 
                 //use Gson to output
-                System.out.println(String.valueOf(objectInfo));
-                System.out.println(gson.fromJson(String.valueOf(objectInfo),Object.class));
+                jobResponse = String.valueOf(objectInfo);
+                System.out.println(jobResponse);
 
 
-
-/*
-62220272b30c0d7e4616aab2
-
-
-JobID bulk restart: "jobId":"6225c8caa4da5e3db4e7a074"
- */
-
-
-
-
-            }
+            } else{ System.out.println("Response bad: "+status); }
             conn.disconnect();
 
 
@@ -114,7 +120,9 @@ JobID bulk restart: "jobId":"6225c8caa4da5e3db4e7a074"
 
     }
 
-
+    public String getJobResponse() {
+        return jobResponse;
+    }
 
 
 }

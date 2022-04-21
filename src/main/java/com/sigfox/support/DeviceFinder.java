@@ -28,20 +28,23 @@ import java.util.*;
 
 public class DeviceFinder {
     private static HttpURLConnection conn;
+    private String url;
 
+public DeviceFinder(){
 
+}
 
-    public static void main(String[] args) {
+    public void run() {
 
 
         //init vars
         BufferedReader br, reader;
         List<BaseStation> csvBaseStationList = new ArrayList<>();
-        String username = "5e4680733e09fa0d7bf8baba";
-        String password = "cf05091ce34c55cf4298c48d1d41c28f";
+        List<BaseStation> apiList;
         String deviceID; //Make ArrayList
         List<Device> devices = new ArrayList<>();
-
+        StringBuilder objectInfo;
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
 
             //Map initialization
@@ -82,10 +85,14 @@ public class DeviceFinder {
         });
         map.addLayer(polygonLayer);
 */
+/*TODO:
+   Add feedback
+   Add display map functionality
+*/
 
         //Reading Base Station List from csv provided into ArrList
         try {
-            br = new BufferedReader(new FileReader("C:\\Users\\User\\IdeaProjects\\BaseStationAPILocator\\src\\main\\java\\com\\sigfox\\support\\baseStationSites.csv"));
+            br = new BufferedReader(new FileReader("C:\\Users\\User\\IdeaProjects\\BaseStationAPILocator\\src\\main\\resources\\baseStationSites.csv"));
             br.readLine();
             br.readLine();
             //skip first two lines
@@ -97,32 +104,20 @@ public class DeviceFinder {
                 BaseStation baseStation = new BaseStation(data[0], Double.parseDouble(data[1]), Double.parseDouble(data[2]));
                 csvBaseStationList.add(baseStation);
             }
-
             br.close();
+
+
+
             //Connecting to the sigfox API
-
-            //Querying list of device IDs
-            URL urlDevice = new URL("https://api.sigfox.com/v2/devices/");
-            conn = (HttpURLConnection) urlDevice.openConnection();
-
-
-            //request setup
-            conn.setRequestMethod("GET");
-         //   System.out.println(conn.getRequestProperty("Limit"));
-
-
-            //Basic Auth
-
-            conn.setReadTimeout(5000);
-            String encoding = Base64.getEncoder().encodeToString((username+":"+password).getBytes(StandardCharsets.UTF_8));
-            conn.setRequestProperty  ("Authorization", "Basic " + encoding);
-            conn.connect();
+            url = "https://api.sigfox.com/v2/devices/";
+            API devFind = new API();
+            conn = devFind.getAPI(url);
 
 
             int status = conn.getResponseCode();
-//If response good
+            //If response good
             if (status == 200) {
-                StringBuilder objectInfo = new StringBuilder();
+                objectInfo = new StringBuilder();
                 reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 
 
@@ -132,146 +127,139 @@ public class DeviceFinder {
                 }
                 reader.close();
 
-                System.out.println("\n\nJSON!\n\n");
-                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-               /* JsonObject jo = gson.fromJson(String.valueOf(objectInfo),JsonObject.class);
+
+                JsonObject jo = gson.fromJson(String.valueOf(objectInfo), JsonObject.class);
                 JsonArray ja = jo.getAsJsonArray("data");
-                devices = gson.fromJson(ja, new TypeToken<List<Device>>(){}.getType());*/
-                devices.add(new Device());
-                devices.get(0).setId("00338244");
+                devices = gson.fromJson(ja, new TypeToken<List<Device>>() {}.getType());
+                conn.disconnect();
+            }
+            else{ System.out.println("Error code " + status);
+                System.exit(1);
+            }
+
                 //***********************************************************//
                 //Iterating each device to get their closest base stations
-                for (int i = 0; i < devices.size(); i++) {
-                }
-                //Base Station API query
-                conn.disconnect();
+            int dynamicSize = 3; //devices.size();
+                for (int i = 0; i < dynamicSize; i++) {
 
-                deviceID="00338244"; //devices.get(i).getId(); //add functionality
-
-                URL urlBase = new URL("https://api.sigfox.com/v2/devices/"+deviceID+"/messages"); //https://api.sigfox.com/v2/devices/2F2239/messages");
-                conn = (HttpURLConnection) urlBase.openConnection();
-
-                //request setup
-                conn.setRequestMethod("GET");
-                conn.setReadTimeout(5000);
-                conn.setRequestProperty  ("Authorization", "Basic " + encoding);
-                conn.connect();
-
-                status = conn.getResponseCode();
-
-                if (status == 200) {
-                    objectInfo = new StringBuilder();
-                    reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-
-                    while ((row = reader.readLine()) != null) {
-                        objectInfo.append(row);
-                    }
-                    reader.close();
+                    //reinitializing apilist and giving some data, apilist is per device
+                    apiList = new ArrayList<>();
+                    apiList.add(new BaseStation("ZYXZYX", 0, 0));
+                    apiList.get(0).setRssi(-1000);
 
 
-                    JsonObject jsonObject = new JsonObject();
+                    //Base Station API query
 
-                    gson = new GsonBuilder().setPrettyPrinting().create();
-                    jsonObject = gson.fromJson(String.valueOf(objectInfo), JsonObject.class);
+                    deviceID = devices.get(i).getId(); //add functionality
+                    url = "https://api.sigfox.com/v2/devices/" + deviceID + "/messages";
+                    devFind = new API();
+                    conn = devFind.getAPI(url);
+                    status = conn.getResponseCode();
 
-                    //  System.out.println(jsonObject.get("data")); //JSON Data
+                    if (status == 200) {
+                        System.out.println("Response good");
+                        objectInfo = new StringBuilder();
+                        reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 
-
-                    JsonArray data = jsonObject.getAsJsonArray("data"); //Entire API response under data [ {
-
-                    FileWriter fw = new FileWriter(new File("gpsdataCompleteRSSIManip.txt"));
-                    fw.write("name,desc, latitude,longitude,circle_radius\n");
-                    //Looping through each Data Packet
-                    for (int i = 0; i < data.size(); i++) {
-
-
-                        JsonObject dataObj = data.get(i).getAsJsonObject(); //~100 data elements so grabbing the most recent packet [0] and converting into a jsonObj
-
-
-                        JsonArray rinfos = dataObj.getAsJsonArray("rinfos"); //Getting the array of Rinfos data
-
-
-                        //    System.out.println("RINFOS Array data\n\n"+gson.toJson(rinfos));
-
-                        BaseStation[] bs = gson.fromJson(rinfos, BaseStation[].class);
-
-
-                        Arrays.sort(bs, Comparator.comparingDouble(BaseStation::getRssi).reversed());
-                        //Sort Base Station Array by RSSI -> 0
-
-                        //Filling in Lat and Lon Co-ords for T3 Base Stations via CSV Base Station List
-                        BaseStation[] top3 = Arrays.copyOf(bs, 3);
-
-                    /*for (int j = 0; j < top3.length; j++) {
-                        for (BaseStation csv : csvBaseStationList
-                        ) {
-                            //**improve - exit early after found
-                            if (top3[j].getId().equals(csv.getId())) {
-                                top3[j].setLat(csv.getLat());
-                                top3[j].setLon(csv.getLon());
-                            }
+                        while ((row = reader.readLine()) != null) {
+                            objectInfo.append(row);
                         }
-                    }*/
-
-                        BaseStation[] write = bs;
+                        reader.close();
 
 
+                        JsonObject jsonObject = new JsonObject();
 
 
-                   //     for each basestation in this packet
-                        for (int j = 0; j < write.length; j++) {
+                        jsonObject = gson.fromJson(String.valueOf(objectInfo), JsonObject.class);
+
+
+                        JsonArray data = jsonObject.getAsJsonArray("data"); //Entire API response under data [ {
+
+
+                        //Looping through each Data Packet (about 100)
+
+                        for (int k = 0; k < data.size(); k++) {
+
+                            //~100 data elements so grabbing the most recent packet [0] and converting into a jsonObj
+                            JsonObject dataObj = data.get(k).getAsJsonObject();
+
+                            JsonArray rinfos = dataObj.getAsJsonArray("rinfos"); //Getting the array of Rinfos data
+
+
+                            //    System.out.println("RINFOS Array data\n\n"+gson.toJson(rinfos));
+
+                            BaseStation[] messageBs = gson.fromJson(rinfos, BaseStation[].class);
+
+                            //Sort Base Station Array by RSSI -> 0
+                            //Arrays.sort(bs, Comparator.comparingDouble(BaseStation::getRssi).reversed());
+
+                            boolean exists =false;
+
+                            //If base stations are repeated keep the RSSI closest to 0 or add it to the list
+                            for (BaseStation bs: messageBs) {
+
+                                for (int m=0;m<apiList.size();m++) {  //apiList is not null bc we gave it dummy data
+                                    BaseStation api = apiList.get(m);
+                                    if (bs.getId().equals(api.getId())) //if base station is already been added
+                                    {
+                                        if (bs.getRssi()>api.getRssi()) //update RSSI
+                                        {
+                                            apiList.get(m).setRssi(bs.getRssi());
+                                        }
+                                        exists=true;
+                                        break;
+                                    }
+
+                                }
+                                //If its a new base station add it to the apilist
+                                if (exists==false)
+                                {
+                                    apiList.add(bs);
+                                }
+                                //if it was on the list reset the boolean flag
+                                exists = false;
+                            }
+
+                        }
+
+
+                        FileWriter fw = new FileWriter(new File("gpsdata_"+deviceID+".txt"));
+                        fw.write("name,desc, latitude,longitude,circle_radius\n");
+                        //     for each basestation in this packet
+                        for (int j = 0; j < apiList.size(); j++) {
                             for (BaseStation csv : csvBaseStationList) {
-                                //**improve - exit early after found
-                                if (write[j].getId().equals(csv.getId())) {
-                                    write[j].setLat(csv.getLat());
-                                    write[j].setLon(csv.getLon());
+
+                                if (apiList.get(j).getId().equals(csv.getId())) {
+                                    //Filling in Lat and Lon Co-ords for each base station attached to this device
+                                    apiList.get(j).setLat(csv.getLat());
+                                    apiList.get(j).setLon(csv.getLon());
+                                    break;
 
                                 }
                             }
-                            fw.write(write[j].toStringVis());
-                         }
+                            fw.write(apiList.get(j).toStringVis());
 
-
-
-                        //testing one device at a time - commented out for csv writing
-                        //   devices.get(0).setBaseStations(top3);
-
+                        }
+                        System.out.println("File has been written to");
+                        fw.close();
 
                     }
-                    fw.close();
-                }
-                else{
+                    else {
                         System.out.println("Status 200 then error code " + status);
+                        System.exit(1);
                     }
 
-
-
-                //Printing all Device info
-                for (Device de : devices) {
-                    System.out.println("de.toString()");
                 }
 
 
-
-            } else {
-                System.out.println("Error code " + status);
+            } catch(FileNotFoundException e){
+                System.out.println("File not found" + Arrays.toString(e.getStackTrace()));
+            } catch(MalformedURLException f){
+                System.out.println("Malformed url " + Arrays.toString(f.getStackTrace()));
+            } catch(IOException e){
+                System.out.println("IO exception! ");
+                e.printStackTrace();
             }
-
-
-        } catch (FileNotFoundException e) {
-            System.out.println("File not found" + Arrays.toString(e.getStackTrace()));
-        } catch (MalformedURLException f) {
-            System.out.println("Malformed url " + Arrays.toString(f.getStackTrace()));
-        } catch (IOException e) {
-            System.out.println("IO exception! ");
-            e.printStackTrace();
-        }/* catch (ParseException e) {
-            System.out.println("Parsing issue ");
-            e.printStackTrace();
-        }*/
-
-//API
-
 
     }
 
